@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -65,6 +66,7 @@ def serialize_paycheck(db: Session, paycheck: Paychecks) -> dict:
         "deposits": deposit_data,
         "total_leftover": total_leftover,
         "created": paycheck.created,
+        "editable": paycheck.pay_date >= date.today(),
     }
 
 @router.post("", response_model=PaycheckResponseSchema, status_code=status.HTTP_201_CREATED)
@@ -113,6 +115,53 @@ def list_paychecks(
         .all()
     )
     return [serialize_paycheck(db, paycheck) for paycheck in paychecks]
+
+@router.put("/{paycheck_id}", response_model=PaycheckResponseSchema)
+def update_paycheck(
+    paycheck_id: UUID,
+    body: PaycheckCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    paycheck = get_owned_paycheck(db, paycheck_id, current_user.id)
+
+    if paycheck.pay_date < date.today():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot edit a paycheck whose pay date has already passed",
+        )
+
+    for deposit in body.deposits:
+        get_owned_account(db, deposit.account_id, current_user.id)
+
+    old_deposits = db.query(PaycheckDeposits).filter(PaycheckDeposits.paycheck_id == paycheck.id).all()
+    for deposit in old_deposits:
+        db.query(PaycheckAllocations).filter(PaycheckAllocations.paycheck_deposit_id == deposit.id).delete()
+    db.query(PaycheckDeposits).filter(PaycheckDeposits.paycheck_id == paycheck.id).delete()
+    db.commit()
+
+    paycheck.pay_date = body.pay_date
+    db.commit()
+
+    for deposit_data in body.deposits:
+        deposit = PaycheckDeposits(
+            paycheck_id=paycheck.id,
+            account_id=deposit_data.account_id,
+            amount=deposit_data.amount,
+        )
+        db.add(deposit)
+        db.commit()
+        db.refresh(deposit)
+
+        for allocation_data in deposit_data.allocations:
+            db.add(PaycheckAllocations(
+                paycheck_deposit_id=deposit.id,
+                name=allocation_data.name,
+                amount=allocation_data.amount,
+            ))
+        db.commit()
+
+    return serialize_paycheck(db, paycheck)
 
 @router.delete("/{paycheck_id}")
 def delete_paycheck(

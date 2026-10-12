@@ -12,10 +12,11 @@ nav {
 nav a {
   color: var(--text-h);
   text-decoration: none;
+  font-weight: 500;
 }
 
 nav a:hover {
-  text-decoration: underline;
+  color: var(--accent);
 }
 
 form {
@@ -26,37 +27,68 @@ form {
   width: 100%;
   max-width: 360px;
   margin: 16px auto;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
 
 input,
 select {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 10px;
+  padding: 9px 12px;
   font-size: 16px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--bg);
   color: var(--text);
+  transition: border-color 0.15s ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 button {
-  padding: 8px 16px;
-  font-size: 16px;
-  border: 1px solid var(--text);
-  border-radius: 4px;
+  padding: 9px 18px;
+  font-size: 15px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   background: var(--bg);
   color: var(--text);
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 button:hover {
+  border-color: var(--accent);
   background: var(--accent-bg);
 }
 
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+button[type="submit"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button[type="submit"]:hover {
+  opacity: 0.9;
+  background: var(--accent);
+}
+
+button[type="submit"]:disabled {
+  background: var(--border);
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 .table-wrap {
@@ -69,23 +101,32 @@ table {
   border-collapse: collapse;
   width: 100%;
   max-width: 500px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 th,
 td {
-  padding: 6px 12px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--border);
   text-align: center;
+}
+
+th {
+  background: var(--surface);
+  font-weight: 600;
 }
 
 .paycheck-card {
   width: 100%;
   max-width: 500px;
   margin: 16px auto;
-  padding: 16px;
+  padding: 18px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
   text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .paycheck-card ul {
@@ -94,13 +135,44 @@ td {
   margin: 8px 0;
 }
 
+.deposit-block {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.deposit-heading {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.deposit-amount {
+  color: var(--accent);
+  font-weight: 600;
+  margin: 2px 0 8px;
+}
+
+.items-label {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 10px 0 4px;
+}
+
+.field-label {
+  align-self: flex-start;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: -2px;
+}
+
 .deposit-form-row {
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 12px 0;
+  padding: 14px 0;
   border-top: 1px solid var(--border);
 }
 

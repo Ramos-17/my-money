@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import {
   listPaychecks,
   createPaycheck,
+  updatePaycheck,
   deletePaycheck,
   getAccounts,
   type Paycheck,
@@ -25,6 +26,7 @@ function PaycheckPlanner() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [payDate, setPayDate] = useState("")
   const [deposits, setDeposits] = useState<DraftDeposit[]>([emptyDeposit()])
+  const [editingPaycheckId, setEditingPaycheckId] = useState<string | null>(null)
   const [error, setError] = useState("")
 
   function loadPaychecks() {
@@ -89,26 +91,59 @@ function PaycheckPlanner() {
     )
   }
 
-  async function handleAddPaycheck(e: React.FormEvent) {
+  function resetForm() {
+    setPayDate("")
+    setDeposits([emptyDeposit()])
+    setEditingPaycheckId(null)
+  }
+
+  function handleEdit(paycheck: Paycheck) {
+    setError("")
+    setEditingPaycheckId(paycheck.id)
+    setPayDate(paycheck.pay_date)
+    setDeposits(
+      paycheck.deposits.map((deposit) => ({
+        accountId: deposit.account_id,
+        amount: String(deposit.amount),
+        allocations: deposit.allocations.length
+          ? deposit.allocations.map((allocation) => ({
+              name: allocation.name,
+              amount: String(allocation.amount),
+            }))
+          : [{ name: "", amount: "" }],
+      })),
+    )
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
-    try {
-      const payload = deposits
-        .filter((deposit) => deposit.accountId && deposit.amount)
-        .map((deposit) => ({
-          account_id: deposit.accountId,
-          amount: Number(deposit.amount),
-          allocations: deposit.allocations
-            .filter((allocation) => allocation.name && allocation.amount)
-            .map((allocation) => ({ name: allocation.name, amount: Number(allocation.amount) })),
-        }))
 
-      await createPaycheck(payDate, payload)
-      setPayDate("")
-      setDeposits([emptyDeposit()])
+    const payload = deposits
+      .filter((deposit) => deposit.accountId && deposit.amount)
+      .map((deposit) => ({
+        account_id: deposit.accountId,
+        amount: Number(deposit.amount),
+        allocations: deposit.allocations
+          .filter((allocation) => allocation.name && allocation.amount)
+          .map((allocation) => ({ name: allocation.name, amount: Number(allocation.amount) })),
+      }))
+
+    if (payload.length === 0) {
+      setError("Select an account and enter an amount for at least one deposit.")
+      return
+    }
+
+    try {
+      if (editingPaycheckId) {
+        await updatePaycheck(editingPaycheckId, payDate, payload)
+      } else {
+        await createPaycheck(payDate, payload)
+      }
+      resetForm()
       loadPaychecks()
     } catch {
-      setError("Could not add paycheck.")
+      setError(editingPaycheckId ? "Could not save changes." : "Could not add paycheck.")
     }
   }
 
@@ -116,6 +151,9 @@ function PaycheckPlanner() {
     setError("")
     try {
       await deletePaycheck(paycheckId)
+      if (editingPaycheckId === paycheckId) {
+        resetForm()
+      }
       loadPaychecks()
     } catch {
       setError("Could not delete paycheck.")
@@ -131,34 +169,42 @@ function PaycheckPlanner() {
         <div key={paycheck.id} className="paycheck-card">
           <h3>Paycheck Date: {formatShortDate(paycheck.pay_date)}</h3>
           {paycheck.deposits.map((deposit) => (
-            <div key={deposit.id}>
-              <p>
-                <strong>
-                  {deposit.institution_name ?? "Unknown bank"} {deposit.account_name} Amount: $
-                  {deposit.amount.toFixed(2)}
-                </strong>
+            <div key={deposit.id} className="deposit-block">
+              <p className="deposit-heading">
+                {deposit.institution_name ?? "Unknown bank"} — {deposit.account_name}
               </p>
-              <ul>
-                {deposit.allocations.map((allocation) => (
-                  <li key={allocation.id}>
-                    {allocation.name}: ${allocation.amount.toFixed(2)}
-                  </li>
-                ))}
-              </ul>
+              <p className="deposit-amount">Deposit: ${deposit.amount.toFixed(2)}</p>
+              {deposit.allocations.length > 0 && (
+                <>
+                  <p className="items-label">Items</p>
+                  <ul>
+                    {deposit.allocations.map((allocation) => (
+                      <li key={allocation.id}>
+                        {allocation.name}: ${allocation.amount.toFixed(2)}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
               <p>Leftover: ${deposit.leftover.toFixed(2)}</p>
             </div>
           ))}
           <p>
             <strong>Total Leftover: ${paycheck.total_leftover.toFixed(2)}</strong>
           </p>
+          {paycheck.editable && (
+            <button type="button" onClick={() => handleEdit(paycheck)}>
+              Edit
+            </button>
+          )}
           <button type="button" onClick={() => handleDelete(paycheck.id)}>
             Delete
           </button>
         </div>
       ))}
 
-      <form onSubmit={handleAddPaycheck}>
-        <h3>Add a paycheck</h3>
+      <form onSubmit={handleSubmit}>
+        <h3>{editingPaycheckId ? "Edit paycheck" : "Add a paycheck"}</h3>
         <input
           type="date"
           value={payDate}
@@ -167,6 +213,7 @@ function PaycheckPlanner() {
 
         {deposits.map((deposit, depositIndex) => (
           <div key={depositIndex} className="deposit-form-row">
+            <label className="field-label">Account and deposit amount</label>
             <select
               value={deposit.accountId}
               onChange={(e) => updateDeposit(depositIndex, { accountId: e.target.value })}
@@ -181,7 +228,7 @@ function PaycheckPlanner() {
             <input
               type="number"
               step="0.01"
-              placeholder="Amount"
+              placeholder="Deposit amount"
               value={deposit.amount}
               onChange={(e) => updateDeposit(depositIndex, { amount: e.target.value })}
             />
@@ -191,6 +238,7 @@ function PaycheckPlanner() {
               </button>
             )}
 
+            <label className="field-label items-label">Items for this account</label>
             {deposit.allocations.map((allocation, allocationIndex) => (
               <div key={allocationIndex} className="allocation-form-row">
                 <input
@@ -202,7 +250,7 @@ function PaycheckPlanner() {
                 <input
                   type="number"
                   step="0.01"
-                  placeholder="Amount"
+                  placeholder="Item amount"
                   value={allocation.amount}
                   onChange={(e) => updateAllocation(depositIndex, allocationIndex, { amount: e.target.value })}
                 />
@@ -224,8 +272,13 @@ function PaycheckPlanner() {
         </button>
 
         <button type="submit" disabled={!payDate}>
-          Add paycheck
+          {editingPaycheckId ? "Save changes" : "Add paycheck"}
         </button>
+        {editingPaycheckId && (
+          <button type="button" onClick={resetForm}>
+            Cancel
+          </button>
+        )}
       </form>
     </div>
   )

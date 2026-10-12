@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
@@ -5,6 +6,7 @@ from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUse
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
+from plaid.model.accounts_balance_get_request_options import AccountsBalanceGetRequestOptions
 from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
 from dependancies import get_current_user
@@ -16,7 +18,12 @@ from plaid_client import client
 router = APIRouter()
 
 def sync_plaid_accounts_for_item(db: Session, item: PlaidItems) -> tuple[dict[str, PlaidAccounts], list]:
-    request = AccountsBalanceGetRequest(access_token=item.access_token)
+    request = AccountsBalanceGetRequest(
+        access_token=item.access_token,
+        options=AccountsBalanceGetRequestOptions(
+            min_last_updated_datetime=datetime.now(timezone.utc) - timedelta(minutes=30),
+        ),
+    )
     response = client.accounts_balance_get(request)
 
     accounts_by_plaid_id: dict[str, PlaidAccounts] = {}

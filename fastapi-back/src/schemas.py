@@ -120,6 +120,7 @@ class PaycheckResponseSchema(BaseModel):
     deposits: list[PaycheckDepositResponseSchema]
     total_leftover: float
     created: datetime
+    editable: bool
 
 class RecurringChargeResponseSchema(BaseModel):
     id: UUID

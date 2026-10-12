@@ -159,6 +159,7 @@ export type Paycheck = {
   deposits: PaycheckDeposit[]
   total_leftover: number
   created: string
+  editable: boolean
 }
 
 export type NewPaycheckAllocation = {
@@ -194,6 +195,25 @@ export async function createPaycheck(payDate: string, deposits: NewPaycheckDepos
 
   if (!response.ok) {
     throw new Error("Failed to create paycheck")
+  }
+
+  return response.json()
+}
+
+export async function updatePaycheck(
+  paycheckId: string,
+  payDate: string,
+  deposits: NewPaycheckDeposit[],
+): Promise<Paycheck> {
+  const response = await fetch(`${API_BASE_URL}/paychecks/${paycheckId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ pay_date: payDate, deposits }),
+  })
+
+  if (!response.ok) {
+    throw new Error("Failed to update paycheck")
   }
 
   return response.json()

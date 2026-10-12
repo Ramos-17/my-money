@@ -4,9 +4,11 @@
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #000;
-  --accent-bg: #f4f3ec;
-  --accent-border: #000;
+  --accent: #2563eb;
+  --accent-bg: #eff4ff;
+  --accent-border: #2563eb;
+  --muted: #6b7280;
+  --surface: #fafafa;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;

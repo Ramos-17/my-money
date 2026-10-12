@@ -21,7 +21,7 @@ def sync_plaid_accounts_for_item(db: Session, item: PlaidItems) -> tuple[dict[st
     request = AccountsBalanceGetRequest(
         access_token=item.access_token,
         options=AccountsBalanceGetRequestOptions(
-            min_last_updated_datetime=datetime.now(timezone.utc) - timedelta(minutes=30),
+            min_last_updated_datetime=datetime.now(timezone.utc) - timedelta(days=7),
         ),
     )
     response = client.accounts_balance_get(request)

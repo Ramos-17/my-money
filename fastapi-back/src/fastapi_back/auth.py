@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, get_password_hash, verify_password
 from sqlalchemy.orm import Session
@@ -42,12 +43,14 @@ def login_user(user_data: LoginSchema, response: Response, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
 
     token = create_access_token({"sub": str(user.id)})
+    is_production = os.getenv("ENVIRONMENT") == "production"
 
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite="none" if is_production else "lax",
+        secure=is_production,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 

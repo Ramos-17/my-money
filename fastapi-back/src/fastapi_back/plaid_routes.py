@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
@@ -28,27 +29,21 @@ def sync_plaid_accounts_for_item(db: Session, item: PlaidItems) -> tuple[dict[st
 
     accounts_by_plaid_id: dict[str, PlaidAccounts] = {}
     for account in response["accounts"]:
-        plaid_account = (
-            db.query(PlaidAccounts)
-            .filter(PlaidAccounts.account_id == account["account_id"])
-            .first()
-        )
-        if plaid_account is None:
-            plaid_account = PlaidAccounts(
-                plaid_item_id=item.id,
-                account_id=account["account_id"],
-                name=account["name"],
-                type=str(account["type"]),
-                subtype=str(account["subtype"]) if account["subtype"] else None,
-            )
-            db.add(plaid_account)
-        else:
-            plaid_account.name = account["name"]
-            plaid_account.type = str(account["type"])
-            plaid_account.subtype = str(account["subtype"]) if account["subtype"] else None
+        values = {
+            "plaid_item_id": item.id,
+            "account_id": account["account_id"],
+            "name": account["name"],
+            "type": str(account["type"]),
+            "subtype": str(account["subtype"]) if account["subtype"] else None,
+        }
+        stmt = pg_insert(PlaidAccounts.__table__).values(**values)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[PlaidAccounts.__table__.c.account_id],
+            set_={"name": values["name"], "type": values["type"], "subtype": values["subtype"]},
+        ).returning(PlaidAccounts.__table__.c.id)
+        account_row_id = db.execute(stmt).scalar_one()
         db.commit()
-        db.refresh(plaid_account)
-        accounts_by_plaid_id[account["account_id"]] = plaid_account
+        accounts_by_plaid_id[account["account_id"]] = db.get(PlaidAccounts, account_row_id)
 
     return accounts_by_plaid_id, response["accounts"]
 @router.post("/create_link_token")
@@ -112,35 +107,39 @@ def get_transactions(
                 if account is None:
                     continue
 
-                stored = (
-                    db.query(Transactions)
-                    .filter(Transactions.transaction_id == txn["transaction_id"])
-                    .first()
+                values = {
+                    "transaction_id": txn["transaction_id"],
+                    "account_id": account.id,
+                    "user_id": current_user.id,
+                    "merchant_name": txn["merchant_name"],
+                    "name": txn["name"],
+                    "amount": txn["amount"],
+                    "date": txn["date"],
+                    "pending": txn["pending"],
+                }
+                stmt = pg_insert(Transactions.__table__).values(**values)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[Transactions.__table__.c.transaction_id],
+                    set_={
+                        "merchant_name": values["merchant_name"],
+                        "name": values["name"],
+                        "amount": values["amount"],
+                        "date": values["date"],
+                        "pending": values["pending"],
+                    },
                 )
-                if stored is None:
-                    stored = Transactions(
-                        transaction_id=txn["transaction_id"],
-                        account_id=account.id,
-                        user_id=current_user.id,
-                    )
-                    db.add(stored)
-                stored.merchant_name = txn["merchant_name"]
-                stored.name = txn["name"]
-                stored.amount = txn["amount"]
-                stored.date = txn["date"]
-                stored.pending = txn["pending"]
+                db.execute(stmt)
                 db.commit()
-                db.refresh(stored)
 
                 transactions.append({
-                    "transaction_id": stored.transaction_id,
+                    "transaction_id": txn["transaction_id"],
                     "account_id": txn["account_id"],
                     "institution_name": item.institution_name,
-                    "name": stored.name,
-                    "merchant_name": stored.merchant_name,
-                    "amount": float(stored.amount),
-                    "date": stored.date.isoformat(),
-                    "pending": stored.pending,
+                    "name": txn["name"],
+                    "merchant_name": txn["merchant_name"],
+                    "amount": float(txn["amount"]),
+                    "date": txn["date"].isoformat(),
+                    "pending": txn["pending"],
                 })
             has_more = response["has_more"]
             cursor = response["next_cursor"]

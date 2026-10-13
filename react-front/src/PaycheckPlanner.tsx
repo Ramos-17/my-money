@@ -4,16 +4,14 @@ import {
   createPaycheck,
   updatePaycheck,
   deletePaycheck,
-  getAccounts,
   type Paycheck,
-  type Account,
 } from "./api"
 
 type DraftAllocation = { name: string; amount: string }
-type DraftDeposit = { accountId: string; amount: string; allocations: DraftAllocation[] }
+type DraftDeposit = { accountName: string; amount: string; allocations: DraftAllocation[] }
 
 function emptyDeposit(): DraftDeposit {
-  return { accountId: "", amount: "", allocations: [{ name: "", amount: "" }] }
+  return { accountName: "", amount: "", allocations: [{ name: "", amount: "" }] }
 }
 
 function formatShortDate(isoDate: string): string {
@@ -23,7 +21,6 @@ function formatShortDate(isoDate: string): string {
 
 function PaycheckPlanner() {
   const [paychecks, setPaychecks] = useState<Paycheck[]>([])
-  const [accounts, setAccounts] = useState<Account[]>([])
   const [payDate, setPayDate] = useState("")
   const [deposits, setDeposits] = useState<DraftDeposit[]>([emptyDeposit()])
   const [editingPaycheckId, setEditingPaycheckId] = useState<string | null>(null)
@@ -38,9 +35,6 @@ function PaycheckPlanner() {
 
   useEffect(() => {
     loadPaychecks()
-    getAccounts()
-      .then(setAccounts)
-      .catch(() => setError("Could not load accounts."))
   }, [])
 
   function updateDeposit(index: number, changes: Partial<DraftDeposit>) {
@@ -103,7 +97,7 @@ function PaycheckPlanner() {
     setPayDate(paycheck.pay_date)
     setDeposits(
       paycheck.deposits.map((deposit) => ({
-        accountId: deposit.account_id,
+        accountName: deposit.account_name,
         amount: String(deposit.amount),
         allocations: deposit.allocations.length
           ? deposit.allocations.map((allocation) => ({
@@ -120,9 +114,9 @@ function PaycheckPlanner() {
     setError("")
 
     const payload = deposits
-      .filter((deposit) => deposit.accountId && deposit.amount)
+      .filter((deposit) => deposit.accountName && deposit.amount)
       .map((deposit) => ({
-        account_id: deposit.accountId,
+        account_name: deposit.accountName,
         amount: Number(deposit.amount),
         allocations: deposit.allocations
           .filter((allocation) => allocation.name && allocation.amount)
@@ -130,7 +124,7 @@ function PaycheckPlanner() {
       }))
 
     if (payload.length === 0) {
-      setError("Select an account and enter an amount for at least one deposit.")
+      setError("Enter an account name and amount for at least one deposit.")
       return
     }
 
@@ -171,7 +165,7 @@ function PaycheckPlanner() {
           {paycheck.deposits.map((deposit) => (
             <div key={deposit.id} className="deposit-block">
               <p className="deposit-heading">
-                {deposit.institution_name ?? "Unknown bank"} — {deposit.account_name}
+                {deposit.institution_name ?? deposit.account_name}
               </p>
               <p className="deposit-amount">Deposit: ${deposit.amount.toFixed(2)}</p>
               {deposit.allocations.length > 0 && (
@@ -214,17 +208,12 @@ function PaycheckPlanner() {
         {deposits.map((deposit, depositIndex) => (
           <div key={depositIndex} className="deposit-form-row">
             <label className="field-label">Account and deposit amount</label>
-            <select
-              value={deposit.accountId}
-              onChange={(e) => updateDeposit(depositIndex, { accountId: e.target.value })}
-            >
-              <option value="">Select account</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.institution_name ?? "Unknown bank"} — {account.name}
-                </option>
-              ))}
-            </select>
+            <input
+              type="text"
+              placeholder="Account name (e.g. Capital One)"
+              value={deposit.accountName}
+              onChange={(e) => updateDeposit(depositIndex, { accountName: e.target.value })}
+            />
             <input
               type="number"
               step="0.01"

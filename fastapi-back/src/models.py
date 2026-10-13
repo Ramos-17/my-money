@@ -94,7 +94,8 @@ class PaycheckDeposits(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
     created = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
     paycheck_id = Column(UUID(as_uuid=True), ForeignKey("paychecks.id"), nullable=False)
-    account_id = Column(UUID(as_uuid=True), ForeignKey("plaid_accounts.id"), nullable=False)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("plaid_accounts.id"), nullable=True)
+    account_name = Column(String(255), nullable=True)
     amount = Column(Numeric(10, 2), nullable=False)
 
 class PaycheckAllocations(Base):

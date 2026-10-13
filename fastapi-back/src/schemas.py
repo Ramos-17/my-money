@@ -92,7 +92,8 @@ class PaycheckAllocationCreateSchema(BaseModel):
     amount: Decimal
 
 class PaycheckDepositCreateSchema(BaseModel):
-    account_id: UUID
+    account_id: UUID | None = None
+    account_name: str | None = None
     amount: Decimal
     allocations: list[PaycheckAllocationCreateSchema] = []
 
@@ -107,7 +108,7 @@ class PaycheckAllocationResponseSchema(BaseModel):
 
 class PaycheckDepositResponseSchema(BaseModel):
     id: UUID
-    account_id: UUID
+    account_id: UUID | None
     account_name: str
     institution_name: str | None
     amount: float

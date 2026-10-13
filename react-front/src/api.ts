@@ -145,7 +145,7 @@ export type PaycheckAllocation = {
 
 export type PaycheckDeposit = {
   id: string
-  account_id: string
+  account_id: string | null
   account_name: string
   institution_name: string | null
   amount: number
@@ -168,7 +168,7 @@ export type NewPaycheckAllocation = {
 }
 
 export type NewPaycheckDeposit = {
-  account_id: string
+  account_name: string
   amount: number
   allocations: NewPaycheckAllocation[]
 }

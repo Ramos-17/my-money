@@ -5,7 +5,7 @@ from uuid import UUID
 from database import get_db
 from dependancies import get_current_user
 from models import User, PlaidItems, PlaidAccounts, Paychecks, PaycheckDeposits, PaycheckAllocations
-from schemas import PaycheckCreateSchema, PaycheckResponseSchema
+from schemas import PaycheckCreateSchema, PaycheckDepositCreateSchema, PaycheckResponseSchema
 
 router = APIRouter()
 
@@ -19,6 +19,15 @@ def get_owned_account(db: Session, account_id: UUID, user_id: UUID) -> PlaidAcco
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
     return account
+
+def validate_deposit(db: Session, deposit: PaycheckDepositCreateSchema, user_id: UUID) -> None:
+    if deposit.account_id is not None:
+        get_owned_account(db, deposit.account_id, user_id)
+    elif not deposit.account_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Each deposit needs either account_id or account_name",
+        )
 
 def get_owned_paycheck(db: Session, paycheck_id: UUID, user_id: UUID) -> Paychecks:
     paycheck = (
@@ -36,8 +45,12 @@ def serialize_paycheck(db: Session, paycheck: Paychecks) -> dict:
     deposit_data = []
     total_leftover = 0.0
     for deposit in deposits:
-        account = db.query(PlaidAccounts).filter(PlaidAccounts.id == deposit.account_id).first()
-        item = db.query(PlaidItems).filter(PlaidItems.id == account.plaid_item_id).first()
+        account = None
+        item = None
+        if deposit.account_id is not None:
+            account = db.query(PlaidAccounts).filter(PlaidAccounts.id == deposit.account_id).first()
+            if account is not None:
+                item = db.query(PlaidItems).filter(PlaidItems.id == account.plaid_item_id).first()
         allocations = (
             db.query(PaycheckAllocations)
             .filter(PaycheckAllocations.paycheck_deposit_id == deposit.id)
@@ -50,7 +63,7 @@ def serialize_paycheck(db: Session, paycheck: Paychecks) -> dict:
         deposit_data.append({
             "id": deposit.id,
             "account_id": deposit.account_id,
-            "account_name": account.name,
+            "account_name": account.name if account else (deposit.account_name or "Unnamed account"),
             "institution_name": item.institution_name if item else None,
             "amount": float(deposit.amount),
             "allocations": [
@@ -76,7 +89,7 @@ def create_paycheck(
     db: Session = Depends(get_db),
 ):
     for deposit in body.deposits:
-        get_owned_account(db, deposit.account_id, current_user.id)
+        validate_deposit(db, deposit, current_user.id)
 
     paycheck = Paychecks(user_id=current_user.id, pay_date=body.pay_date)
     db.add(paycheck)
@@ -87,6 +100,7 @@ def create_paycheck(
         deposit = PaycheckDeposits(
             paycheck_id=paycheck.id,
             account_id=deposit_data.account_id,
+            account_name=deposit_data.account_name,
             amount=deposit_data.amount,
         )
         db.add(deposit)
@@ -132,7 +146,7 @@ def update_paycheck(
         )
 
     for deposit in body.deposits:
-        get_owned_account(db, deposit.account_id, current_user.id)
+        validate_deposit(db, deposit, current_user.id)
 
     old_deposits = db.query(PaycheckDeposits).filter(PaycheckDeposits.paycheck_id == paycheck.id).all()
     for deposit in old_deposits:
@@ -147,6 +161,7 @@ def update_paycheck(
         deposit = PaycheckDeposits(
             paycheck_id=paycheck.id,
             account_id=deposit_data.account_id,
+            account_name=deposit_data.account_name,
             amount=deposit_data.amount,
         )
         db.add(deposit)
